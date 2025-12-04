@@ -1,0 +1,46 @@
+# DraftSensei Backend - AI-Powered Mobile Legends Draft Assistant
+# Production-ready requirements for FastAPI deployment
+
+# Core FastAPI and server
+fastapi==0.104.1
+uvicorn[standard]==0.24.0
+gunicorn==21.2.0
+
+# Database and ORM
+sqlalchemy>=2.0.23
+alembic==1.12.1
+psycopg2-binary==2.9.11
+
+# Data validation and serialization  
+pydantic>=2.5.0
+pydantic-settings==2.0.3
+
+# HTTP client for external APIs (optional for future features)
+httpx==0.25.2
+requests==2.31.0
+
+# Date and time handling
+python-dateutil==2.8.2
+
+# Environment and configuration
+python-dotenv==1.0.0
+
+# Development and debugging (remove in production)
+python-multipart==0.0.6
+
+# Monitoring and logging (optional but recommended)
+structlog==23.2.0
+
+# Testing (development only)
+pytest==7.4.3
+pytest-asyncio==0.21.1
+pytest-cov==4.1.0
+
+# Security and validation
+email-validator==2.1.0
+
+# Performance and caching (optional)
+redis==5.0.1
+
+# Database migrations
+alembic==1.12.1
