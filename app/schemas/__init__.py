@@ -7,8 +7,7 @@ from .draft_schema import (
     TeamComposition, MatchResult, DraftAnalytics
 )
 from .hero_schema import (
-    Hero, HeroCreate, HeroUpdate, HeroList, HeroStats, HeroCounters, 
-    HeroSynergy, HeroMetadata, HeroSearchRequest, BulkHeroUpdate
+    Hero, HeroCreate, HeroUpdate, HeroList, HeroStats, HeroMetadata, HeroSearchRequest, BulkHeroUpdate
 )
 
 __all__ = [
@@ -28,8 +27,6 @@ __all__ = [
     "HeroUpdate", 
     "HeroList",
     "HeroStats",
-    "HeroCounters",
-    "HeroSynergy",
     "HeroMetadata",
     "HeroSearchRequest",
     "BulkHeroUpdate"

@@ -11,7 +11,7 @@ from ..db.database import get_db
 from ..db.models import Hero
 from ..schemas.hero_schema import (
     Hero as HeroSchema, HeroCreate, HeroUpdate, HeroList, 
-    HeroSearchRequest, BulkHeroUpdate, HeroCounters, HeroSynergy
+    HeroSearchRequest, BulkHeroUpdate
 )
 
 router = APIRouter(prefix="/heroes", tags=["heroes"])
@@ -20,7 +20,7 @@ router = APIRouter(prefix="/heroes", tags=["heroes"])
 @router.get("/list", response_model=HeroList, summary="Get list of all heroes")
 async def get_heroes_list(
     skip: int = Query(0, ge=0, description="Number of heroes to skip"),
-    limit: int = Query(50, ge=1, le=100, description="Number of heroes to return"),
+    limit: int = Query(150, ge=1, le=100, description="Number of heroes to return"),
     role: Optional[str] = Query(None, description="Filter by role"),
     search: Optional[str] = Query(None, description="Search by hero name"),
     db: Session = Depends(get_db)
@@ -38,30 +38,47 @@ async def get_heroes_list(
     try:
         query = db.query(Hero)
         
-        # Apply filters
-        if role:
-            query = query.filter(Hero.role == role)
-        
+        # Apply search filter
         if search:
             query = query.filter(Hero.name.ilike(f"%{search}%"))
         
-        # Get total count
-        total = query.count()
+        # Get heroes (we'll filter by role in Python since it's in JSON)
+        all_heroes = query.all()
+        
+        # Filter by role if specified (role is in meta JSON)
+        if role:
+            filtered_heroes = []
+            for hero in all_heroes:
+                meta = hero.get_meta()
+                if meta and isinstance(meta, dict):
+                    if 'attributes' in meta and 'roles' in meta['attributes']:
+                        primary_role = meta['attributes']['roles'].get('primary_role', '')
+                        if primary_role.lower() == role.lower():
+                            filtered_heroes.append(hero)
+            all_heroes = filtered_heroes
+        
+        # Get total count after filtering
+        total = len(all_heroes)
         
         # Apply pagination
-        heroes = query.offset(skip).limit(limit).all()
+        heroes = all_heroes[skip:skip + limit]
         
         # Convert to response schema
         hero_list = []
         for hero in heroes:
+            metadata = hero.get_meta()
+            # Extract primary role from nested meta structure
+            primary_role = "Unknown"
+            if metadata and isinstance(metadata, dict):
+                if 'attributes' in metadata and 'roles' in metadata['attributes']:
+                    primary_role = metadata['attributes']['roles'].get('primary_role', 'Unknown')
+            
             hero_data = HeroSchema(
                 id=hero.id,
                 name=hero.name,
-                role=hero.role,
                 image=hero.image or "",
                 stats=hero.get_stats(),
-                counters=hero.get_counters(),
-                synergy=hero.get_synergy(),
+                meta=metadata,
                 created_at=hero.created_at,
                 updated_at=hero.updated_at
             )
@@ -100,53 +117,9 @@ async def get_hero_by_id(
         return HeroSchema(
             id=hero.id,
             name=hero.name,
-            role=hero.role,
             image=hero.image or "",
             stats=hero.get_stats(),
-            counters=hero.get_counters(),
-            synergy=hero.get_synergy(),
-            created_at=hero.created_at,
-            updated_at=hero.updated_at
-        )
-        
-    except HTTPException:
-        raise
-    except Exception as e:
-        raise HTTPException(
-            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
-            detail=f"Error fetching hero: {str(e)}"
-        )
-
-
-@router.get("/id/{hero_id}", response_model=HeroSchema, summary="Get hero by ID")
-async def get_hero_by_id(
-    hero_id: int,
-    db: Session = Depends(get_db)
-) -> HeroSchema:
-    """
-    Get detailed information for a specific hero by ID.
-    
-    - **hero_id**: Unique identifier of the hero
-    
-    Returns complete hero information including stats, counters, and synergies.
-    """
-    try:
-        hero = db.query(Hero).filter(Hero.id == hero_id).first()
-        
-        if not hero:
-            raise HTTPException(
-                status_code=status.HTTP_404_NOT_FOUND,
-                detail=f"Hero with ID {hero_id} not found"
-            )
-        
-        return HeroSchema(
-            id=hero.id,
-            name=hero.name,
-            role=hero.role,
-            image=hero.image or "",
-            stats=hero.get_stats(),
-            counters=hero.get_counters(),
-            synergy=hero.get_synergy(),
+            meta=hero.get_meta(),
             created_at=hero.created_at,
             updated_at=hero.updated_at
         )
@@ -170,7 +143,7 @@ async def get_hero_by_name(
     
     - **hero_name**: Name of the hero (case-sensitive)
     
-    Returns complete hero information including stats, counters, and synergies.
+    Returns complete hero information including stats and metadata.
     """
     try:
         hero = db.query(Hero).filter(Hero.name == hero_name).first()
@@ -184,11 +157,9 @@ async def get_hero_by_name(
         return HeroSchema(
             id=hero.id,
             name=hero.name,
-            role=hero.role,
             image=hero.image or "",
             stats=hero.get_stats(),
-            counters=hero.get_counters(),
-            synergy=hero.get_synergy(),
+            meta=hero.get_meta(),
             created_at=hero.created_at,
             updated_at=hero.updated_at
         )
@@ -201,109 +172,6 @@ async def get_hero_by_name(
             detail=f"Error fetching hero: {str(e)}"
         )
 
-
-@router.get("/{hero_name}/counters", response_model=HeroCounters, summary="Get hero counters")
-async def get_hero_counters(
-    hero_name: str,
-    db: Session = Depends(get_db)
-) -> HeroCounters:
-    """
-    Get counter relationships for a specific hero.
-    
-    - **hero_name**: Name of the hero
-    
-    Returns heroes that counter this hero and heroes that this hero counters.
-    """
-    try:
-        hero = db.query(Hero).filter(Hero.name == hero_name).first()
-        
-        if not hero:
-            raise HTTPException(
-                status_code=status.HTTP_404_NOT_FOUND,
-                detail=f"Hero '{hero_name}' not found"
-            )
-        
-        counters_data = hero.get_counters()
-        
-        # Separate into countered_by and counters lists
-        countered_by = []
-        counters = []
-        
-        # Get all heroes for reverse lookup
-        all_heroes = db.query(Hero).all()
-        hero_counters_map = {h.name: h.get_counters() for h in all_heroes}
-        
-        # Find who counters this hero
-        for other_hero, other_counters in hero_counters_map.items():
-            if hero_name in other_counters and other_counters[hero_name] >= 60:
-                countered_by.append(other_hero)
-        
-        # Find who this hero counters
-        for target_hero, strength in counters_data.items():
-            if strength >= 60:
-                counters.append(target_hero)
-        
-        return HeroCounters(
-            hero_name=hero_name,
-            countered_by=countered_by,
-            counters=counters,
-            counter_scores=counters_data
-        )
-        
-    except HTTPException:
-        raise
-    except Exception as e:
-        raise HTTPException(
-            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
-            detail=f"Error fetching counters: {str(e)}"
-        )
-
-
-@router.get("/{hero_name}/synergy", response_model=HeroSynergy, summary="Get hero synergies")
-async def get_hero_synergy(
-    hero_name: str,
-    db: Session = Depends(get_db)
-) -> HeroSynergy:
-    """
-    Get synergy relationships for a specific hero.
-    
-    - **hero_name**: Name of the hero
-    
-    Returns synergy scores with other heroes and best team partners.
-    """
-    try:
-        hero = db.query(Hero).filter(Hero.name == hero_name).first()
-        
-        if not hero:
-            raise HTTPException(
-                status_code=status.HTTP_404_NOT_FOUND,
-                detail=f"Hero '{hero_name}' not found"
-            )
-        
-        synergy_data = hero.get_synergy()
-        
-        # Get best partners (synergy >= 75)
-        best_partners = [
-            partner for partner, score in synergy_data.items() 
-            if score >= 75
-        ]
-        best_partners.sort(key=lambda x: synergy_data[x], reverse=True)
-        
-        return HeroSynergy(
-            hero_name=hero_name,
-            synergies=synergy_data,
-            best_partners=best_partners[:5]  # Top 5 partners
-        )
-        
-    except HTTPException:
-        raise
-    except Exception as e:
-        raise HTTPException(
-            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
-            detail=f"Error fetching synergies: {str(e)}"
-        )
-
-
 @router.post("/create", response_model=HeroSchema, summary="Create a new hero")
 async def create_hero(
     hero_data: HeroCreate,
@@ -315,8 +183,7 @@ async def create_hero(
     - **name**: Hero name (must be unique)
     - **role**: Hero role
     - **stats**: Hero statistics (optional)
-    - **counters**: Counter relationships (optional)
-    - **synergy**: Synergy relationships (optional)
+    - **meta**: Hero metadata (optional)
     
     Returns the created hero with generated ID and timestamps.
     """
@@ -332,16 +199,14 @@ async def create_hero(
         # Create new hero
         new_hero = Hero(
             name=hero_data.name,
-            role=hero_data.role
+            image=hero_data.image
         )
         
         # Set optional data
         if hero_data.stats:
             new_hero.set_stats(hero_data.stats)
-        if hero_data.counters:
-            new_hero.set_counters(hero_data.counters)
-        if hero_data.synergy:
-            new_hero.set_synergy(hero_data.synergy)
+        if hero_data.meta:
+            new_hero.set_meta(hero_data.meta)
         
         db.add(new_hero)
         db.commit()
@@ -350,10 +215,9 @@ async def create_hero(
         return HeroSchema(
             id=new_hero.id,
             name=new_hero.name,
-            role=new_hero.role,
+            image=new_hero.image or "",
             stats=new_hero.get_stats(),
-            counters=new_hero.get_counters(),
-            synergy=new_hero.get_synergy(),
+            meta=new_hero.get_meta(),
             created_at=new_hero.created_at,
             updated_at=new_hero.updated_at
         )
@@ -403,28 +267,24 @@ async def update_hero(
                     )
             hero.name = hero_update.name
         
-        if hero_update.role is not None:
-            hero.role = hero_update.role
+        if hero_update.image is not None:
+            hero.image = hero_update.image
         
         if hero_update.stats is not None:
             hero.set_stats(hero_update.stats)
         
-        if hero_update.counters is not None:
-            hero.set_counters(hero_update.counters)
-        
-        if hero_update.synergy is not None:
-            hero.set_synergy(hero_update.synergy)
-        
+        if hero_update.meta is not None:
+            hero.set_meta(hero_update.meta)
+
         db.commit()
         db.refresh(hero)
         
         return HeroSchema(
             id=hero.id,
             name=hero.name,
-            role=hero.role,
+            image=hero.image or "",
             stats=hero.get_stats(),
-            counters=hero.get_counters(),
-            synergy=hero.get_synergy(),
+            meta=hero.get_meta(),
             created_at=hero.created_at,
             updated_at=hero.updated_at
         )
@@ -467,33 +327,27 @@ async def bulk_update_heroes(
                     # Update existing hero
                     if bulk_update.update_mode == "replace" or hero_data.stats:
                         if hero_data.stats:
-                            existing_hero.set_stats(hero_data.stats)
+                            existing_hero.set_stats(hero_data.stats)                   
                     
-                    if bulk_update.update_mode == "replace" or hero_data.counters:
-                        if hero_data.counters:
-                            existing_hero.set_counters(hero_data.counters)
+                    if bulk_update.update_mode == "replace" or hero_data.meta:
+                        if hero_data.meta:
+                            existing_hero.set_meta(hero_data.meta)
                     
-                    if bulk_update.update_mode == "replace" or hero_data.synergy:
-                        if hero_data.synergy:
-                            existing_hero.set_synergy(hero_data.synergy)
-                    
-                    if hero_data.role:
-                        existing_hero.role = hero_data.role
+                    if hero_data.image:
+                        existing_hero.image = hero_data.image
                     
                     updated_count += 1
                 else:
                     # Create new hero
                     new_hero = Hero(
                         name=hero_data.name,
-                        role=hero_data.role
+                        image=hero_data.image or ""
                     )
                     
                     if hero_data.stats:
                         new_hero.set_stats(hero_data.stats)
-                    if hero_data.counters:
-                        new_hero.set_counters(hero_data.counters)
-                    if hero_data.synergy:
-                        new_hero.set_synergy(hero_data.synergy)
+                    if hero_data.meta:
+                        new_hero.set_meta(hero_data.meta)
                     
                     db.add(new_hero)
                     created_count += 1
@@ -569,19 +423,24 @@ async def get_role_distribution(db: Session = Depends(get_db)):
     Returns count of heroes per role and percentage distribution.
     """
     try:
-        role_stats = (
-            db.query(Hero.role, func.count(Hero.id).label('count'))
-            .group_by(Hero.role)
-            .all()
-        )
+        # Get all heroes and extract roles from meta
+        heroes = db.query(Hero).all()
+        role_counts = {}
         
-        total_heroes = sum(stat.count for stat in role_stats)
+        for hero in heroes:
+            meta = hero.get_meta()
+            if meta and isinstance(meta, dict):
+                if 'attributes' in meta and 'roles' in meta['attributes']:
+                    primary_role = meta['attributes']['roles'].get('primary_role', 'Unknown')
+                    role_counts[primary_role] = role_counts.get(primary_role, 0) + 1
+        
+        total_heroes = len(heroes)
         
         distribution = {}
-        for stat in role_stats:
-            distribution[stat.role] = {
-                "count": stat.count,
-                "percentage": round((stat.count / total_heroes) * 100, 1) if total_heroes > 0 else 0
+        for role, count in role_counts.items():
+            distribution[role] = {
+                "count": count,
+                "percentage": round((count / total_heroes) * 100, 1) if total_heroes > 0 else 0
             }
         
         return {
@@ -594,3 +453,4 @@ async def get_role_distribution(db: Session = Depends(get_db)):
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
             detail=f"Error fetching role distribution: {str(e)}"
         )
+    

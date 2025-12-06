@@ -44,10 +44,8 @@ class PatchUpdater:
             "heroes": [
                 {
                     "name": "Hero Name",
-                    "role": "Tank",
                     "stats": {...},
-                    "counters": {...},
-                    "synergy": {...}
+                    "meta": {...}
                 },
                 ...
             ]
@@ -114,16 +112,9 @@ class PatchUpdater:
                             if hero_data.stats:
                                 existing_hero.set_stats(hero_data.stats)
                         
-                        if update_mode == "replace" or hero_data.counters:
-                            if hero_data.counters:
-                                existing_hero.set_counters(hero_data.counters)
-                        
-                        if update_mode == "replace" or hero_data.synergy:
-                            if hero_data.synergy:
-                                existing_hero.set_synergy(hero_data.synergy)
-                        
-                        if hero_data.role:
-                            existing_hero.role = hero_data.role
+                        if update_mode == "replace" or hero_data.meta:
+                            if hero_data.meta:
+                                existing_hero.set_meta(hero_data.meta)
                         
                         if hasattr(hero_data, 'image') and hero_data.image:
                             existing_hero.image = hero_data.image
@@ -134,15 +125,12 @@ class PatchUpdater:
                         # Create new hero
                         new_hero = Hero(
                             name=hero_data.name,
-                            role=hero_data.role
                         )
                         
                         if hero_data.stats:
                             new_hero.set_stats(hero_data.stats)
-                        if hero_data.counters:
-                            new_hero.set_counters(hero_data.counters)
-                        if hero_data.synergy:
-                            new_hero.set_synergy(hero_data.synergy)
+                        if hero_data.meta:
+                            new_hero.set_meta(hero_data.meta)
                         if hasattr(hero_data, 'image') and hero_data.image:
                             new_hero.image = hero_data.image
                         
@@ -197,7 +185,6 @@ class PatchUpdater:
             "heroes": [
                 {
                     "name": "Hero Name",
-                    "role": "Tank",  # Tank, Fighter, Assassin, Mage, Marksman, Support
                     "image": "https://kgapbcqtdpyhonznxwyu.supabase.co/storage/v1/object/public/hero-images/khufra.png",
                     "stats": {
                         "hp": 2500,
@@ -213,13 +200,13 @@ class PatchUpdater:
                         "spell_vamp": 0,
                         "physical_lifesteal": 0
                     },
-                    "counters": {
-                        "Enemy Hero 1": 85.0,
-                        "Enemy Hero 2": 70.0
-                    },
-                    "synergy": {
-                        "Partner Hero 1": 90.0,
-                        "Partner Hero 2": 75.0
+                    "meta": {
+                        "combat": {},
+                        "survivability": {},
+                        "utility": {},
+                        "range_playstyle": {},
+                        "power_curve": {},
+                        "roles": {}
                     }
                 }
             ]

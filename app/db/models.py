@@ -19,11 +19,9 @@ class Hero(Base):
 
     id = Column(Integer, primary_key=True, index=True)
     name = Column(String(100), unique=True, index=True, nullable=False)
-    role = Column(String(50), nullable=False)  # Tank, Fighter, Assassin, Mage, Marksman, Support
     image = Column(String(500), nullable=True)  # Hero image URL
     stats_json = Column(Text, nullable=True)  # JSON string with hero stats
-    counters_json = Column(Text, nullable=True)  # JSON string with counter relationships
-    synergy_json = Column(Text, nullable=True)  # JSON string with synergy data
+    meta_json = Column(Text, nullable=True)  # JSON string with hero meta
     created_at = Column(DateTime(timezone=True), server_default=func.now())
     updated_at = Column(DateTime(timezone=True), onupdate=func.now())
 
@@ -37,47 +35,32 @@ class Hero(Base):
             return json.loads(self.stats_json)
         return {}
 
-    def get_counters(self):
-        """Get hero counters as dictionary"""
-        if self.counters_json:
-            return json.loads(self.counters_json)
-        return {}
-
-    def get_synergy(self):
-        """Get hero synergy data as dictionary"""
-        if self.synergy_json:
-            return json.loads(self.synergy_json)
-        return {}
-
     @property
     def stats(self):
         """Property to get stats as dict"""
         return self.get_stats()
 
-    @property
-    def counters(self):
-        """Property to get counters as dict"""
-        return self.get_counters()
-
-    @property
-    def synergy(self):
-        """Property to get synergy as dict"""
-        return self.get_synergy()
-
     def set_stats(self, stats_dict):
         """Set hero stats from dictionary"""
         self.stats_json = json.dumps(stats_dict)
 
-    def set_counters(self, counters_dict):
-        """Set hero counters from dictionary"""
-        self.counters_json = json.dumps(counters_dict)
+    def get_meta(self):
+        """Get hero meta as dictionary"""
+        if self.meta_json:
+            return json.loads(self.meta_json)
+        return {}
 
-    def set_synergy(self, synergy_dict):
-        """Set hero synergy data from dictionary"""
-        self.synergy_json = json.dumps(synergy_dict)
+    @property
+    def meta(self):
+        """Property to get meta as dict"""
+        return self.get_meta()
+
+    def set_meta(self, meta_dict):
+        """Set hero meta from dictionary"""
+        self.meta_json = json.dumps(meta_dict)
 
     def __repr__(self):
-        return f"<Hero(id={self.id}, name='{self.name}', role='{self.role}')>"
+        return f"<Hero(id={self.id}, name='{self.name}')>"
 
 
 class MatchHistory(Base):
@@ -121,7 +104,6 @@ class MatchHistory(Base):
     def __repr__(self):
         return f"<MatchHistory(id={self.id}, hero_id={self.hero_id}, score={self.performance_score})>"
 
-
 class PlayerPreference(Base):
     """
     Player preference model for personalized recommendations
@@ -154,3 +136,4 @@ class PlayerPreference(Base):
 
     def __repr__(self):
         return f"<PlayerPreference(player_id='{self.player_id}', hero_id={self.hero_id}, weight={self.weight})>"
+    

@@ -7,19 +7,93 @@ from typing import List, Optional, Dict, Any
 from datetime import datetime
 
 
+# Meta attribute schemas
+class CombatAttributes(BaseModel):
+    """Combat-related attributes"""
+    burst_damage: int = Field(ge=0, le=5)
+    sustained_damage: int = Field(ge=0, le=5)
+    poke: int = Field(ge=0, le=5)
+    aoe_damage: int = Field(ge=0, le=5)
+    single_target: int = Field(ge=0, le=5)
+    anti_tank: int = Field(ge=0, le=5)
+    anti_squishy: int = Field(ge=0, le=5)
+    dps: int = Field(ge=0, le=5)
+
+
+class SurvivabilityAttributes(BaseModel):
+    """Survivability-related attributes"""
+    tankiness: int = Field(ge=0, le=5)
+    mobility: int = Field(ge=0, le=5)
+    escape: int = Field(ge=0, le=5)
+    regen: int = Field(ge=0, le=5)
+    shields: int = Field(ge=0, le=5)
+
+
+class UtilityAttributes(BaseModel):
+    """Utility-related attributes"""
+    crowd_control: int = Field(ge=0, le=5)
+    displacement: int = Field(ge=0, le=5)
+    silence: int = Field(ge=0, le=5)
+    stun: int = Field(ge=0, le=5)
+    slow: int = Field(ge=0, le=5)
+    team_buff: int = Field(ge=0, le=5)
+    team_heal: int = Field(ge=0, le=5)
+
+
+class RangePlaystyleAttributes(BaseModel):
+    """Range and playstyle attributes"""
+    range: int = Field(ge=0, le=5)
+    engage: int = Field(ge=0, le=5)
+    peel: int = Field(ge=0, le=5)
+    splitpush: int = Field(ge=0, le=5)
+    waveclear: int = Field(ge=0, le=5)
+    vision_or_traps: int = Field(ge=0, le=5)
+
+
+class PowerCurveAttributes(BaseModel):
+    """Power curve attributes"""
+    early_game: int = Field(ge=0, le=5)
+    mid_game: int = Field(ge=0, le=5)
+    late_game: int = Field(ge=0, le=5)
+    scaling: int = Field(ge=0, le=5)
+
+
+class RolesAttributes(BaseModel):
+    """Role-related attributes"""
+    primary_role: str
+    secondary_role: str
+    lane_priority: List[str]
+
+
+class MetaAttributes(BaseModel):
+    """Complete meta attributes structure"""
+    combat: CombatAttributes
+    survivability: SurvivabilityAttributes
+    utility: UtilityAttributes
+    range_playstyle: RangePlaystyleAttributes
+    power_curve: PowerCurveAttributes
+    roles: RolesAttributes
+
+
+class MetaReasoning(BaseModel):
+    """Meta reasoning structure"""
+    how_stats_influenced_scores: str
+    how_skills_influenced_scores: str
+    cooldown_impact: str
+    special_passives_analysis: str
+    final_role_justification: str
+
+
+class HeroMeta(BaseModel):
+    """Complete hero meta structure"""
+    attributes: MetaAttributes
+    reasoning: MetaReasoning
+
+
 class HeroBase(BaseModel):
     """Base hero schema with common fields"""
     name: str = Field(description="Hero name", max_length=100)
-    role: str = Field(description="Hero role")
     image: str = Field(description="URL to hero image", default="")
-
-    @validator('role')
-    def validate_role(cls, v):
-        """Validate hero role"""
-        valid_roles = ["Tank", "Fighter", "Assassin", "Mage", "Marksman", "Support"]
-        if v not in valid_roles:
-            raise ValueError(f"Role must be one of {valid_roles}")
-        return v
 
 
 class HeroCreate(HeroBase):
@@ -28,34 +102,18 @@ class HeroCreate(HeroBase):
         default=None,
         description="Hero statistics and attributes"
     )
-    counters: Optional[Dict[str, float]] = Field(
+    meta: Optional[Dict[str, Any]] = Field(
         default=None,
-        description="Hero counter relationships (hero_name: counter_score)"
-    )
-    synergy: Optional[Dict[str, float]] = Field(
-        default=None,
-        description="Hero synergy relationships (hero_name: synergy_score)"
+        description="Hero metadata and attributes"
     )
 
 
 class HeroUpdate(BaseModel):
     """Schema for updating an existing hero"""
     name: Optional[str] = Field(None, max_length=100)
-    role: Optional[str] = Field(None)
     image: Optional[str] = Field(None)
     stats: Optional[Dict[str, Any]] = Field(None)
-    counters: Optional[Dict[str, float]] = Field(None)
-    synergy: Optional[Dict[str, float]] = Field(None)
-
-    @validator('role')
-    def validate_role(cls, v):
-        """Validate hero role"""
-        if v is None:
-            return None
-        valid_roles = ["Tank", "Fighter", "Assassin", "Mage", "Marksman", "Support"]
-        if v not in valid_roles:
-            raise ValueError(f"Role must be one of {valid_roles}")
-        return v
+    meta: Optional[Dict[str, Any]] = Field(None)
 
 
 class Hero(HeroBase):
@@ -65,14 +123,11 @@ class Hero(HeroBase):
         default={},
         description="Hero statistics and attributes"
     )
-    counters: Dict[str, float] = Field(
+    meta: Dict[str, Any] = Field(
         default={},
-        description="Hero counter relationships"
+        description="Hero metadata and attributes"
     )
-    synergy: Dict[str, float] = Field(
-        default={},
-        description="Hero synergy relationships" 
-    )
+
     created_at: datetime = Field(description="Creation timestamp")
     updated_at: Optional[datetime] = Field(description="Last update timestamp")
 
@@ -100,36 +155,6 @@ class HeroStats(BaseModel):
     penetration: Optional[int] = Field(description="Penetration")
     spell_vamp: Optional[float] = Field(description="Spell vamp")
     physical_lifesteal: Optional[float] = Field(description="Physical lifesteal")
-
-
-class HeroCounters(BaseModel):
-    """Schema for hero counter relationships"""
-    hero_name: str = Field(description="Hero name")
-    countered_by: List[str] = Field(
-        description="Heroes that counter this hero",
-        default=[]
-    )
-    counters: List[str] = Field(
-        description="Heroes that this hero counters",
-        default=[]
-    )
-    counter_scores: Dict[str, float] = Field(
-        description="Counter strength scores (0-100)",
-        default={}
-    )
-
-
-class HeroSynergy(BaseModel):
-    """Schema for hero synergy relationships"""
-    hero_name: str = Field(description="Hero name")
-    synergies: Dict[str, float] = Field(
-        description="Synergy scores with other heroes (0-100)",
-        default={}
-    )
-    best_partners: List[str] = Field(
-        description="Best hero partners",
-        default=[]
-    )
 
 
 class HeroMetadata(BaseModel):
