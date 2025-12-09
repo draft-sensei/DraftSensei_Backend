@@ -54,6 +54,51 @@ class DraftRequest(BaseModel):
         return v
 
 
+class MetaDraftRequest(BaseModel):
+    """Request schema for meta-based draft suggestions"""
+    banned_heroes: List[str] = Field(
+        default=[],
+        description="List of banned heroes",
+        example=["Fanny", "Ling"]
+    )
+    enemy_picks: List[str] = Field(
+        default=[],
+        description="List of enemy team picks",
+        example=["Valentina", "Esmeralda"]
+    )
+    ally_picks: List[str] = Field(
+        default=[],
+        description="List of ally team picks",
+        example=["Lolita", "Yin"]
+    )
+    current_role: str = Field(
+        description="Current role to fill",
+        example="exp"
+    )
+
+    @validator('banned_heroes', 'enemy_picks', 'ally_picks')
+    def validate_hero_lists(cls, v):
+        """Validate that hero names are not empty strings"""
+        if v is None:
+            return []
+        return [hero.strip() for hero in v if hero and hero.strip()]
+
+    @validator('current_role')
+    def validate_current_role(cls, v):
+        """Validate current role"""
+        valid_roles = ["exp", "jungle", "mid", "gold", "roam"]
+        if v.lower() not in valid_roles:
+            raise ValueError(f"Role must be one of {valid_roles}")
+        return v.lower()
+
+
+class MetaDraftResponse(BaseModel):
+    """Response schema for meta-based draft suggestions"""
+    suggestions: List[Dict[str, Any]] = Field(
+        description="List of hero suggestions with scores and reasons"
+    )
+
+
 class HeroPick(BaseModel):
     """Schema for a single hero pick recommendation"""
     hero: str = Field(description="Hero name")

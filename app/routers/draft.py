@@ -4,14 +4,18 @@ Draft API Router - Main endpoint for hero draft suggestions
 
 from fastapi import APIRouter, Depends, HTTPException, status
 from sqlalchemy.orm import Session
-from typing import List
+from typing import List, Dict, Any
 
 from ..db.database import get_db
 from ..schemas.draft_schema import (
     DraftRequest, DraftResponse, HeroPick, BanSuggestionRequest, 
-    BanResponse, TeamComposition, MatchResult
+    BanResponse, TeamComposition, MatchResult, MetaDraftRequest, MetaDraftResponse
+)
+from ..schemas.intelligent_draft_schema import (
+    IntelligentDraftRequest, IntelligentDraftResponse, HeroSuggestion
 )
 from ..services.draft_engine import DraftEngine
+from ..services.meta_draft_engine import get_pick_suggestions, MetaDraftEngine
 
 router = APIRouter(prefix="/draft", tags=["draft"])
 
@@ -265,4 +269,85 @@ async def get_meta_stats(db: Session = Depends(get_db)):
         raise HTTPException(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
             detail=f"Error fetching meta stats: {str(e)}"
+        )
+
+@router.post('/meta-suggest', response_model=MetaDraftResponse, summary='Get meta-based hero suggestions')
+async def meta_suggest_picks(request: MetaDraftRequest, db: Session = Depends(get_db)) -> Dict[str, Any]:
+    try:
+        result = get_pick_suggestions(db_session=db, banned_heroes=request.banned_heroes, enemy_picks=request.enemy_picks, ally_picks=request.ally_picks, current_role=request.current_role)
+        return result
+    except Exception as e:
+        raise HTTPException(status_code=status.HTTP_500_INTERNAL_SERVER_ERROR, detail=f'Error generating meta-based suggestions: {str(e)}')
+
+
+@router.post(
+    '/intelligent-suggest',
+    response_model=IntelligentDraftResponse,
+    summary='Get intelligent draft suggestions (auto-determines best lane)'
+)
+async def intelligent_suggest_picks(
+    request: IntelligentDraftRequest,
+    db: Session = Depends(get_db)
+) -> IntelligentDraftResponse:
+    """
+    Advanced draft suggestion system that intelligently determines the best lane/role to pick
+    based on current draft state, enemy picks, and team composition.
+    
+    **How it works:**
+    - Analyzes draft pick order (1-2-2-2-2-1 pattern in MLBB)
+    - For **first pick**: Secures high-priority meta heroes (Jungle/Mid priority)
+    - For **later picks**: 
+      - Counters enemy threats in their lanes
+      - Fills critical team composition gaps
+      - Prioritizes remaining high-impact lanes
+    
+    **Parameters:**
+    - `banned_heroes`: List of banned hero names
+    - `enemy_picks`: Enemy team's hero picks (in order)
+    - `ally_picks`: Your team's hero picks (in order)
+    
+    **Returns:**
+    - `recommended_lane`: The lane you should fill (e.g., "Jungle", "Mid Lane")
+    - `lane_code`: Lane code for API usage ("jungle", "mid", "exp", "gold", "roam")
+    - `reasoning`: Explanation for why this lane was chosen
+    - `suggestions`: Top 5 hero picks for the recommended lane
+    
+    **Example scenarios:**
+    1. **First pick** → Suggests Jungle (highest impact) with meta heroes
+    2. **Enemy picks strong mage** → Suggests Mid Lane to counter
+    3. **Team has no tank** → Suggests Roam/EXP with tanky heroes
+    """
+    try:
+        # Initialize meta draft engine
+        engine = MetaDraftEngine(db)
+        
+        # Get intelligent lane and hero suggestions
+        result = engine.suggest_best_role_and_heroes(
+            banned_heroes=request.banned_heroes,
+            enemy_picks=request.enemy_picks,
+            ally_picks=request.ally_picks
+        )
+        
+        # Convert suggestions to proper format
+        suggestions = [
+            HeroSuggestion(
+                hero=s["hero"],
+                score=s["score"],
+                reasons=s["reasons"],
+                role=s["role"]
+            )
+            for s in result["suggestions"]
+        ]
+        
+        return IntelligentDraftResponse(
+            recommended_lane=result["recommended_lane"],
+            lane_code=result["lane_code"],
+            reasoning=result["reasoning"],
+            suggestions=suggestions
+        )
+        
+    except Exception as e:
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail=f'Error generating intelligent draft suggestions: {str(e)}'
         )

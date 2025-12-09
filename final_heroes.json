@@ -13022,9 +13022,9 @@
             "scaling": 5
           },
           "roles": {
-            "primary_role": "Assassin",
-            "secondary_role": "Fighter",
-            "lane_priority": ["Jungle", "EXP Lane"]
+            "primary_role": "Mage",
+            "secondary_role": "Support",
+            "lane_priority": ["Mid Lane"]
           }
         },
         "reasoning": {
