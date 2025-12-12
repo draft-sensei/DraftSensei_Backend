@@ -2,24 +2,18 @@
 Schemas module initialization
 """
 
-from .draft_schema import (
-    DraftRequest, DraftResponse, HeroPick, BanSuggestionRequest, BanResponse,
-    TeamComposition, MatchResult, DraftAnalytics
+from .intelligent_draft_schema import (
+    IntelligentDraftRequest, IntelligentDraftResponse, HeroSuggestion
 )
 from .hero_schema import (
     Hero, HeroCreate, HeroUpdate, HeroList, HeroStats, HeroMetadata, HeroSearchRequest, BulkHeroUpdate
 )
 
 __all__ = [
-    # Draft schemas
-    "DraftRequest",
-    "DraftResponse", 
-    "HeroPick",
-    "BanSuggestionRequest",
-    "BanResponse",
-    "TeamComposition",
-    "MatchResult",
-    "DraftAnalytics",
+    # Intelligent draft schemas
+    "IntelligentDraftRequest",
+    "IntelligentDraftResponse",
+    "HeroSuggestion",
     
     # Hero schemas
     "Hero",

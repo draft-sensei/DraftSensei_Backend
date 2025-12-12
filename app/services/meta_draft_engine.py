@@ -9,7 +9,6 @@ from pathlib import Path
 from sqlalchemy.orm import Session
 
 from ..db.models import Hero
-from ..schemas.draft_schema import HeroPick
 
 
 class MetaDraftEngine:

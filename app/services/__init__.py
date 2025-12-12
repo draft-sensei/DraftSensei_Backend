@@ -2,11 +2,8 @@
 Services module initialization
 """
 
-from .draft_engine import DraftEngine
-from .synergy import synergy_system, SynergySystem
+from .meta_draft_engine import MetaDraftEngine
 
 __all__ = [
-    "DraftEngine",
-    "synergy_system", 
-    "SynergySystem"
+    "MetaDraftEngine"
 ]
