@@ -1,6 +1,6 @@
-# DraftSensei Mobile Legends Draft Assistant Backend
+# AI-Enhanced MOBA Draft Recommendation System
 
-🎮 **AI-Powered Mobile Legends Draft Assistant** - Smart hero recommendations for optimal team compositions
+🎮 **AI-Enhanced MOBA Draft Recommendation System** - Smart hero recommendations for optimal team compositions
 
 ## Features
 
