@@ -1,18 +1,19 @@
 """
 Draft API Router - Intelligent hero draft suggestions
+Uses refactored modular services
 """
 
 from fastapi import APIRouter, Depends, HTTPException, status
 from sqlalchemy.orm import Session
-from typing import List, Dict, Any
+from typing import List
 
-from ..db.database import get_db
-from ..schemas.intelligent_draft_schema import (
+from app.db.database import get_db
+from app.schemas.intelligent_draft_schema import (
     IntelligentDraftRequest,
     IntelligentDraftResponse,
     HeroSuggestion,
 )
-from ..services.meta_draft_engine import MetaDraftEngine
+from app.services.draft.analyzer import DraftAnalyzer
 
 router = APIRouter(prefix="/draft", tags=["draft"])
 
@@ -62,17 +63,17 @@ async def intelligent_suggest_picks(
     4. **Late draft with 4 picks** → Focuses on synergy and composition completion
     """
     try:
-        # Initialize meta draft engine
-        engine = MetaDraftEngine(db)
+        # Initialize analyzer with database session
+        analyzer = DraftAnalyzer(db)
 
-        # Get intelligent lane and hero suggestions with adaptive weighting
-        result = engine.suggest_best_role_and_heroes(
+        # Get suggestions
+        result = analyzer.suggest_best_lane_and_heroes(
             banned_heroes=request.banned_heroes,
             enemy_picks=request.enemy_picks,
             ally_picks=request.ally_picks,
         )
 
-        # Convert suggestions to proper format
+        # Convert to response format
         suggestions = [
             HeroSuggestion(
                 hero=s["hero"], score=s["score"], reasons=s["reasons"], role=s["role"]
@@ -90,5 +91,5 @@ async def intelligent_suggest_picks(
     except Exception as e:
         raise HTTPException(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
-            detail=f"Error generating intelligent draft suggestions: {str(e)}",
+            detail=f"Error generating draft suggestions: {str(e)}",
         )
