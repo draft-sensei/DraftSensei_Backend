@@ -160,3 +160,5 @@ render.yaml
 # Alembic
 alembic/versions/*
 !alembic/versions/.gitkeep
+
+FILE_MANIFEST.md
