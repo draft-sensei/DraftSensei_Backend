@@ -1,5 +1,4 @@
 # DraftSensei Backend - AI-Powered Mobile Legends Draft Assistant
-# Production-ready requirements for FastAPI deployment
 
 # Core FastAPI and server
 fastapi==0.104.1
