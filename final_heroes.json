@@ -13587,7 +13587,7 @@
         "attack_speed_ratio": 100.0,
         "critical_damage": 200.0,
         "movement_speed": 252.0,
-        "basic_attack_range": 1.4
+        "basic_attack_range": 1.5
       },
       "meta": {
         "attributes": {
