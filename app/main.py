@@ -9,6 +9,9 @@ from fastapi.responses import JSONResponse
 from contextlib import asynccontextmanager
 import os
 import logging
+from dotenv import load_dotenv
+
+load_dotenv()
 
 from app.db.database import init_db, test_connection
 from app.routers import draft_router, heroes_router
@@ -23,7 +26,7 @@ async def lifespan(app: FastAPI):
     """Application lifespan events"""
     # Startup
     logger.info("Starting DraftSensei Backend...")
-    
+
     # Test database connection
     if test_connection():
         logger.info("Database connection successful")
@@ -32,9 +35,9 @@ async def lifespan(app: FastAPI):
         logger.info("Database initialized")
     else:
         logger.error("Database connection failed")
-    
+
     yield
-    
+
     # Shutdown
     logger.info("Shutting down DraftSensei Backend...")
 
@@ -89,11 +92,8 @@ app = FastAPI(
     ```
     """,
     version="1.0.0",
-    contact={
-        "name": "DraftSensei Team",
-        "email": "support@draftsensei.com"
-    },
-    lifespan=lifespan
+    contact={"name": "DraftSensei Team", "email": "support@draftsensei.com"},
+    lifespan=lifespan,
 )
 
 # Configure CORS
@@ -124,8 +124,8 @@ async def root():
             "hero_list": "/heroes/list",
             "hero_details": "/heroes/{hero_name}",
             "team_analysis": "/draft/analyze",
-            "ban_suggestions": "/draft/ban-suggest"
-        }
+            "ban_suggestions": "/draft/ban-suggest",
+        },
     }
 
 
@@ -135,19 +135,18 @@ async def health_check():
     try:
         # Test database connection
         db_status = "healthy" if test_connection() else "unhealthy"
-        
+
         return {
             "status": "healthy",
             "service": "draftsensei-backend",
             "version": "1.0.0",
             "database": db_status,
-            "environment": os.getenv("ENV", "development")
+            "environment": os.getenv("ENV", "development"),
         }
     except Exception as e:
         logger.error(f"Health check failed: {e}")
         raise HTTPException(
-            status_code=status.HTTP_503_SERVICE_UNAVAILABLE,
-            detail="Service unhealthy"
+            status_code=status.HTTP_503_SERVICE_UNAVAILABLE, detail="Service unhealthy"
         )
 
 
@@ -157,12 +156,12 @@ async def app_info():
     try:
         from app.db.database import SessionLocal
         from app.db.models import Hero, MatchHistory
-        
+
         db = SessionLocal()
         try:
             hero_count = db.query(Hero).count()
             match_count = db.query(MatchHistory).count()
-            
+
             return {
                 "application": "DraftSensei Backend",
                 "version": "1.0.0",
@@ -170,30 +169,34 @@ async def app_info():
                 "statistics": {
                     "total_heroes": hero_count,
                     "total_matches": match_count,
-                    "database_status": "connected"
+                    "database_status": "connected",
                 },
                 "features": [
                     "AI Draft Recommendations",
-                    "Hero Counter Analysis", 
+                    "Hero Counter Analysis",
                     "Team Synergy Calculation",
                     "Meta Performance Tracking",
-                    "Ban Strategy Suggestions"
+                    "Ban Strategy Suggestions",
                 ],
                 "supported_roles": [
-                    "Tank", "Fighter", "Assassin", 
-                    "Mage", "Marksman", "Support"
-                ]
+                    "Tank",
+                    "Fighter",
+                    "Assassin",
+                    "Mage",
+                    "Marksman",
+                    "Support",
+                ],
             }
         finally:
             db.close()
-            
+
     except Exception as e:
         logger.error(f"Info endpoint failed: {e}")
         return {
             "application": "DraftSensei Backend",
             "version": "1.0.0",
             "status": "partial",
-            "error": "Could not fetch statistics"
+            "error": "Could not fetch statistics",
         }
 
 
@@ -206,8 +209,8 @@ async def global_exception_handler(request, exc):
         status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
         content={
             "detail": "Internal server error occurred",
-            "error_type": type(exc).__name__
-        }
+            "error_type": type(exc).__name__,
+        },
     )
 
 
@@ -221,28 +224,28 @@ async def not_found_handler(request, exc):
             "detail": f"Endpoint '{request.url.path}' not found",
             "available_endpoints": {
                 "docs": "/docs",
-                "draft": "/draft/suggest", 
+                "draft": "/draft/suggest",
                 "heroes": "/heroes/list",
-                "health": "/health"
-            }
-        }
+                "health": "/health",
+            },
+        },
     )
 
 
 if __name__ == "__main__":
     import uvicorn
-    
+
     # Get configuration from environment
     host = os.getenv("HOST", "0.0.0.0")
     port = int(os.getenv("PORT", 8000))
     debug = os.getenv("DEBUG", "false").lower() == "true"
-    
+
     logger.info(f"Starting DraftSensei on {host}:{port} (debug={debug})")
-    
+
     uvicorn.run(
         "main:app",
         host=host,
         port=port,
         reload=debug,
-        log_level="info" if not debug else "debug"
+        log_level="info" if not debug else "debug",
     )
