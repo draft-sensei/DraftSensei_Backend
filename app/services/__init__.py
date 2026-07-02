@@ -1,9 +1,7 @@
 """
-Services module initialization
+Services package - Core business logic for draft suggestions
 """
 
-from .meta_draft_engine import MetaDraftEngine
+from .draft.analyzer import DraftAnalyzer
 
-__all__ = [
-    "MetaDraftEngine"
-]
+__all__ = ["DraftAnalyzer"]
