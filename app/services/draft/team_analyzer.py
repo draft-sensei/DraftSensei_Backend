@@ -243,7 +243,7 @@ class TeamAnalyzer:
             heroes_data: Dictionary of all heroes' data
 
         Returns:
-            Threat score 0-1.0?
+            Threat score 0-1.0?.
         """
         lane_name = self.config.ROLE_MAP.get(lane, lane)
         threat_score = 0
