@@ -21,9 +21,64 @@ class DraftConfig:
 
     ALL_LANES: List[str] = ["exp", "jungle", "mid", "gold", "roam"]
 
-    # ===== BASE WEIGHTS =====
-    # These are the default weights used in scoring
-    # Dynamically adjusted based on draft state in weights.py
+    # ===== LANE PRIORITY & IMPORTANCE =====
+    # How important each lane is (higher = more impactful)
+    # This determines priority when multiple lanes are missing
+    LANE_IMPORTANCE: Dict[str, int] = {
+        "jungle": 100,  # Highest impact - pick first
+        "mid": 90,  # Second highest
+        "exp": 80,  # Third
+        "gold": 75,  # Fourth
+        "roam": 70,  # Lowest impact
+    }
+
+    # ===== LANE-SPECIFIC WEIGHT CONFIGURATIONS =====
+    # Different lanes need different scoring emphasis
+
+    LANE_WEIGHTS: Dict[str, Dict[str, float]] = {
+        # Jungle: High impact, needs team synergy and composition balance
+        "jungle": {
+            "counter": 0.15,  # Lower - jungle pick isn't about countering specific lane
+            "synergy": 0.30,  # Medium - synergy with team matters
+            "team_composition": 0.35,  # HIGH - filling gaps is critical
+            "pick_priority": 0.15,  # Medium - meta strength
+            "role_fit": 0.05,  # Very low (must play jungle)
+        },
+        # Mid Lane: Medium impact, needs counter play + team fit
+        "mid": {
+            "counter": 0.30,  # Medium - countering mid enemy matters
+            "synergy": 0.25,  # Medium
+            "team_composition": 0.25,  # Medium - balance team
+            "pick_priority": 0.15,  # Medium
+            "role_fit": 0.05,
+        },
+        # EXP Lane: Fighter/Tank heavy, needs tankiness and team coordination
+        "exp": {
+            "counter": 0.20,  # Low
+            "synergy": 0.30,  # Medium
+            "team_composition": 0.35,  # HIGH - need tankiness/durability
+            "pick_priority": 0.10,  # Low
+            "role_fit": 0.05,
+        },
+        # Gold Lane: Carry lane, needs late game power and farm potential
+        "gold": {
+            "counter": 0.15,  # Low
+            "synergy": 0.25,  # Medium
+            "team_composition": 0.30,  # Medium - need DPS
+            "pick_priority": 0.25,  # Higher - meta marksmen/fighters
+            "role_fit": 0.05,
+        },
+        # Roam: Support role, needs to cover team weaknesses
+        "roam": {
+            "counter": 0.10,  # Very low
+            "synergy": 0.35,  # HIGH - must support team
+            "team_composition": 0.30,  # High - fill gaps (heal, peel, engage)
+            "pick_priority": 0.15,  # Low
+            "role_fit": 0.10,
+        },
+    }
+
+    # ===== BASE WEIGHTS (used if lane-specific not applicable) =====
     BASE_WEIGHTS: Dict[str, float] = {
         "counter": 0.35,
         "synergy": 0.25,
@@ -32,68 +87,46 @@ class DraftConfig:
         "role_fit": 0.05,
     }
 
-    # ===== LANE IMPORTANCE SCORES =====
-    # How important each lane is (higher = more impactful pick)
-    LANE_IMPORTANCE: Dict[str, int] = {
-        "jungle": 100,
-        "mid": 90,
-        "exp": 80,
-        "gold": 75,
-        "roam": 70,
-    }
-
     # ===== DRAFT PHASE DEFINITIONS =====
-    # When is early/mid/late draft?
-    EARLY_DRAFT_THRESHOLD = 4  # Total picks <= 4 = early draft
-    MID_DRAFT_THRESHOLD = 6  # Total picks <= 6 = mid draft
-    LATE_DRAFT_THRESHOLD = 10  # Total picks > 6 = late draft
+    EARLY_DRAFT_THRESHOLD = 4
+    MID_DRAFT_THRESHOLD = 6
+    LATE_DRAFT_THRESHOLD = 10
 
     # ===== THRESHOLD SCORES =====
-    # Score thresholds for adding reasons to suggestions
-    COUNTER_THRESHOLD = 70  # Counter score >= 70 to mention it
-    SYNERGY_THRESHOLD = 70  # Synergy score >= 70 to mention it
-    COMP_THRESHOLD = 70  # Comp score >= 70 to mention it
-    PRIORITY_THRESHOLD = 75  # Priority score >= 75 to mention it
+    COUNTER_THRESHOLD = 70
+    SYNERGY_THRESHOLD = 70
+    COMP_THRESHOLD = 70
+    PRIORITY_THRESHOLD = 75
 
     # ===== LANE FIT SCORES =====
-    # Scoring for how well hero fits a lane
-    LANE_FIT_PRIMARY = 100  # Hero's primary lane
-    LANE_FIT_SECONDARY = 75  # Hero's secondary lane
-    LANE_FIT_TERTIARY = 50  # Hero's tertiary lane
-    LANE_FIT_LOWER = 30  # Lower priority lanes
-    LANE_FIT_NO_MATCH = 5  # No lane priority match
+    LANE_FIT_PRIMARY = 100
+    LANE_FIT_SECONDARY = 75
+    LANE_FIT_TERTIARY = 50
+    LANE_FIT_LOWER = 30
+    LANE_FIT_NO_MATCH = 5
 
     # ===== STAT THRESHOLDS =====
-    # What counts as "high" for different attributes
-    HIGH_STAT_THRESHOLD = 4  # Stats >= 4 out of 5 are "high"
-    VERY_HIGH_STAT_THRESHOLD = 5  # Stats == 5 are "very high"
+    HIGH_STAT_THRESHOLD = 4
+    VERY_HIGH_STAT_THRESHOLD = 5
 
     # ===== TEAM COMPOSITION TARGETS =====
-    # Target stats for a balanced team composition
-    TARGET_TANKINESS = 8  # Minimum total team tankiness
-    TARGET_MAGIC_DAMAGE = 10  # Minimum total magic damage output
-    TARGET_PHYSICAL_DAMAGE = 10  # Minimum total physical damage output
-    TARGET_CROWD_CONTROL = 5  # Minimum total CC
-    TARGET_ENGAGE = 8  # Minimum total engage
-    TARGET_WAVECLEAR = 8  # Minimum total waveclear
+    TARGET_TANKINESS = 8
+    TARGET_MAGIC_DAMAGE = 10
+    TARGET_PHYSICAL_DAMAGE = 10
+    TARGET_CROWD_CONTROL = 5
+    TARGET_ENGAGE = 8
+    TARGET_WAVECLEAR = 8
 
     # ===== PENALTY FACTORS =====
-    ROLE_REDUNDANCY_PENALTY = 15  # Penalty for picking same role twice
-    PERFECT_STAT_PENALTY_2 = 0.90  # 10% penalty for 4 perfect stats
-    PERFECT_STAT_PENALTY_3 = 0.95  # 5% penalty for 3 perfect stats
-    PERFECT_STAT_PENALTY_5 = 0.85  # 15% penalty for 5+ perfect stats
+    ROLE_REDUNDANCY_PENALTY = 15
+    PERFECT_STAT_PENALTY_2 = 0.90
+    PERFECT_STAT_PENALTY_3 = 0.95
+    PERFECT_STAT_PENALTY_5 = 0.85
 
     # ===== DIVERSITY TRACKING =====
-    # Penalty for frequently suggested heroes
-    DIVERSITY_PENALTY_THRESHOLDS = {
-        0: 0.00,  # First suggestion: no penalty
-        2: 0.05,  # 1-2 suggestions: 5% penalty
-        4: 0.10,  # 3-4 suggestions: 10% penalty
-        float("inf"): 0.15,  # 5+ suggestions: 15% penalty
-    }
+    DIVERSITY_PENALTY_THRESHOLDS = {0: 0.00, 2: 0.05, 4: 0.10, float("inf"): 0.15}
 
     # ===== DYNAMIC WEIGHT ADJUSTMENTS =====
-    # How much to adjust weights based on draft state
     WEIGHT_ADJUSTMENTS = {
         "late_draft": {
             "team_composition": +0.10,
@@ -118,10 +151,9 @@ class DraftConfig:
     }
 
     # ===== COUNTER SCORING MECHANICS =====
-    # How much each type of counter adds to score
     COUNTER_SCORING = {
         "anti_squishy": {
-            "threshold": 4,  # Need anti_squishy >= 4
+            "threshold": 4,
             "vs_tankiness": {"threshold": 2, "bonus": 25},
             "vs_tankiness_mod": {"threshold": 3, "bonus": 15},
         },
@@ -151,25 +183,23 @@ class DraftConfig:
     }
 
     # ===== SYNERGY SCORING MECHANICS =====
-    # How much each type of synergy adds to score
     SYNERGY_SCORING = {
-        "tank_dps": 20,  # Tank + DPS dealer
-        "engage_aoe": 25,  # Engage + AoE damage
-        "cc_burst": 20,  # CC + burst damage
-        "peel_squishy": 18,  # Peel + squishy carry
-        "sustain_fighter": 22,  # Sustain support + fighter
-        "double_engage": 15,  # Two engage heroes
-        "dive_comp": 12,  # Multiple mobile heroes
+        "tank_dps": 20,
+        "engage_aoe": 25,
+        "cc_burst": 20,
+        "peel_squishy": 18,
+        "sustain_fighter": 22,
+        "double_engage": 15,
+        "dive_comp": 12,
     }
 
-    # ===== PICK PRIORITY MULTIPLIER =====
-    # Scale for pick priority score calculation
-    PRIORITY_SCALE = 20  # Multiply final priority by 20 to get 0-100 score
+    # ===== PRIORITY MULTIPLIER =====
+    PRIORITY_SCALE = 20
 
     # ===== MAX SUGGESTIONS =====
-    TOP_SUGGESTIONS_COUNT = 5  # Return top 5 hero suggestions
-    REASONS_PER_HERO = 5  # Max reasons to show per hero
+    TOP_SUGGESTIONS_COUNT = 5
+    REASONS_PER_HERO = 5
 
     # ===== LOGGING =====
-    LOG_SCORING_DETAILS = False  # Set to True to log detailed scoring for each hero
-    LOG_WEIGHT_CALCULATIONS = False  # Set to True to log weight calculation details
+    LOG_SCORING_DETAILS = False
+    LOG_WEIGHT_CALCULATIONS = False
