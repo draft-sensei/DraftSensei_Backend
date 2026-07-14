@@ -28,6 +28,46 @@ class HeroEvaluator:
         self.team_analyzer = TeamAnalyzer()
         self.weight_calculator = WeightCalculator()
 
+    def _analyze_team_stats(
+        self,
+        ally_picks: List[str],
+        heroes_data: Dict[str, Dict[str, Any]],
+    ) -> Dict[str, float]:
+        """Analyze team composition stats"""
+        team_stats = {
+            "tankiness": 0,
+            "physical_damage": 0,
+            "magic_damage": 0,
+            "crowd_control": 0,
+            "mobility": 0,
+            "engage": 0,
+        }
+
+        for ally_name in ally_picks:
+            if ally_name in heroes_data:
+                ally = heroes_data[ally_name]
+                meta = ally.get("meta", {})
+                attrs = meta.get("attributes", {})
+
+                combat = attrs.get("combat", {})
+                surv = attrs.get("survivability", {})
+                util = attrs.get("utility", {})
+                range_style = attrs.get("range_playstyle", {})
+
+                team_stats["tankiness"] += surv.get("tankiness", 0)
+                team_stats["crowd_control"] += util.get("crowd_control", 0)
+                team_stats["mobility"] += surv.get("mobility", 0)
+                team_stats["engage"] += range_style.get("engage", 0)
+
+                # Damage type
+                role = attrs.get("roles", {}).get("primary_role", "")
+                if role == "Mage":
+                    team_stats["magic_damage"] += combat.get("dps", 0)
+                else:
+                    team_stats["physical_damage"] += combat.get("dps", 0)
+
+        return team_stats
+
     def evaluate_hero(
         self,
         hero_name: str,
@@ -114,7 +154,7 @@ class HeroEvaluator:
         )
 
         # Boost score if hero fills critical team gap for this lane
-        team_stats = self.team_analyzer._analyze_team_stats(ally_picks, heroes_data)
+        team_stats = self._analyze_team_stats(ally_picks, heroes_data)
         if self._hero_covers_critical_gap(hero, team_stats, current_role):
             final_score *= 1.15  # 15% boost for filling critical gap
             if not reasons[0].startswith("Top tier"):
