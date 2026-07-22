@@ -1,5 +1,5 @@
 """
-Patch Updater Utility - Script to load new patch hero data
+Patch Updater Utility - Script to load new patch hero data.
 """
 
 import json
@@ -25,19 +25,19 @@ class PatchUpdater:
     """
     Utility class for updating hero data from patch files or external sources
     """
-    
+
     def __init__(self):
         self.db = SessionLocal()
-    
+
     def __del__(self):
         """Close database connection"""
-        if hasattr(self, 'db'):
+        if hasattr(self, "db"):
             self.db.close()
-    
+
     def load_patch_data_from_file(self, file_path: str) -> Dict[str, Any]:
         """
         Load patch data from a JSON file
-        
+
         Expected format:
         {
             "patch_version": "1.7.34",
@@ -52,7 +52,7 @@ class PatchUpdater:
         }
         """
         try:
-            with open(file_path, 'r', encoding='utf-8') as f:
+            with open(file_path, "r", encoding="utf-8") as f:
                 data = json.load(f)
             return data
         except FileNotFoundError:
@@ -61,22 +61,24 @@ class PatchUpdater:
         except json.JSONDecodeError as e:
             print(f"Error: Invalid JSON in file '{file_path}': {e}")
             return {}
-    
-    def update_heroes_from_file(self, file_path: str, update_mode: str = "merge") -> Dict[str, Any]:
+
+    def update_heroes_from_file(
+        self, file_path: str, update_mode: str = "merge"
+    ) -> Dict[str, Any]:
         """
         Update heroes from a JSON file
         """
         patch_data = self.load_patch_data_from_file(file_path)
-        
+
         if not patch_data:
             return {"error": "Failed to load patch data"}
-        
+
         heroes_data = patch_data.get("heroes", [])
         patch_version = patch_data.get("patch_version", "unknown")
-        
+
         if not heroes_data:
             return {"error": "No hero data found in file"}
-        
+
         # Convert to HeroCreate objects
         heroes = []
         for hero_data in heroes_data:
@@ -84,41 +86,47 @@ class PatchUpdater:
                 hero = HeroCreate(**hero_data)
                 heroes.append(hero)
             except Exception as e:
-                print(f"Error parsing hero data: {hero_data.get('name', 'unknown')}: {e}")
+                print(
+                    f"Error parsing hero data: {hero_data.get('name', 'unknown')}: {e}"
+                )
                 continue
-        
+
         if not heroes:
             return {"error": "No valid heroes found"}
-        
+
         return self.bulk_update_heroes(heroes, patch_version, update_mode)
-    
-    def bulk_update_heroes(self, heroes: List[HeroCreate], patch_version: str, update_mode: str = "merge") -> Dict[str, Any]:
+
+    def bulk_update_heroes(
+        self, heroes: List[HeroCreate], patch_version: str, update_mode: str = "merge"
+    ) -> Dict[str, Any]:
         """
         Bulk update heroes in database
         """
         updated_count = 0
         created_count = 0
         errors = []
-        
+
         try:
             for hero_data in heroes:
                 try:
                     # Check if hero exists
-                    existing_hero = self.db.query(Hero).filter(Hero.name == hero_data.name).first()
-                    
+                    existing_hero = (
+                        self.db.query(Hero).filter(Hero.name == hero_data.name).first()
+                    )
+
                     if existing_hero:
                         # Update existing hero
                         if update_mode == "replace" or hero_data.stats:
                             if hero_data.stats:
                                 existing_hero.set_stats(hero_data.stats)
-                        
+
                         if update_mode == "replace" or hero_data.meta:
                             if hero_data.meta:
                                 existing_hero.set_meta(hero_data.meta)
-                        
-                        if hasattr(hero_data, 'image') and hero_data.image:
+
+                        if hasattr(hero_data, "image") and hero_data.image:
                             existing_hero.image = hero_data.image
-                        
+
                         updated_count += 1
                         print(f"Updated hero: {hero_data.name}")
                     else:
@@ -126,47 +134,49 @@ class PatchUpdater:
                         new_hero = Hero(
                             name=hero_data.name,
                         )
-                        
+
                         if hero_data.stats:
                             new_hero.set_stats(hero_data.stats)
                         if hero_data.meta:
                             new_hero.set_meta(hero_data.meta)
-                        if hasattr(hero_data, 'image') and hero_data.image:
+                        if hasattr(hero_data, "image") and hero_data.image:
                             new_hero.image = hero_data.image
-                        
+
                         self.db.add(new_hero)
                         created_count += 1
                         print(f"Created hero: {hero_data.name}")
-                        
+
                 except Exception as e:
                     error_msg = f"Error processing hero '{hero_data.name}': {str(e)}"
                     errors.append(error_msg)
                     print(error_msg)
                     continue
-            
+
             # Commit all changes
             self.db.commit()
-            
+
             result = {
                 "success": True,
                 "message": "Bulk update completed",
                 "created": created_count,
                 "updated": updated_count,
-                "patch_version": patch_version
+                "patch_version": patch_version,
             }
-            
+
             if errors:
                 result["errors"] = errors
-            
-            print(f"Bulk update completed: {created_count} created, {updated_count} updated")
+
+            print(
+                f"Bulk update completed: {created_count} created, {updated_count} updated"
+            )
             return result
-            
+
         except Exception as e:
             self.db.rollback()
             error_msg = f"Error in bulk update: {str(e)}"
             print(error_msg)
             return {"success": False, "error": error_msg}
-    
+
     def load_sample_data(self) -> Dict[str, Any]:
         """
         Load sample hero data for development/testing
@@ -174,7 +184,7 @@ class PatchUpdater:
         print("Loading sample hero data...")
         heroes = self.load_sample_heroes()
         return self.bulk_update_heroes(heroes, "sample_v1.0", "replace")
-    
+
     def create_patch_template(self, output_file: str = "patch_template.json"):
         """
         Create a template JSON file for patch updates
@@ -198,7 +208,7 @@ class PatchUpdater:
                         "critical_chance": 0,
                         "penetration": 0,
                         "spell_vamp": 0,
-                        "physical_lifesteal": 0
+                        "physical_lifesteal": 0,
                     },
                     "meta": {
                         "combat": {},
@@ -206,14 +216,14 @@ class PatchUpdater:
                         "utility": {},
                         "range_playstyle": {},
                         "power_curve": {},
-                        "roles": {}
-                    }
+                        "roles": {},
+                    },
                 }
-            ]
+            ],
         }
-        
+
         try:
-            with open(output_file, 'w', encoding='utf-8') as f:
+            with open(output_file, "w", encoding="utf-8") as f:
                 json.dump(template, f, indent=4, ensure_ascii=False)
             print(f"Patch template created: {output_file}")
             return {"success": True, "file": output_file}
@@ -227,31 +237,43 @@ def main():
     Command line interface for patch updater
     """
     import argparse
-    
+
     parser = argparse.ArgumentParser(description="DraftSensei Patch Updater")
-    parser.add_argument("action", choices=["load-sample", "update-from-file", "create-template"], 
-                       help="Action to perform")
+    parser.add_argument(
+        "action",
+        choices=["load-sample", "update-from-file", "create-template"],
+        help="Action to perform",
+    )
     parser.add_argument("--file", "-f", help="File path for patch data")
-    parser.add_argument("--mode", "-m", choices=["merge", "replace"], default="merge",
-                       help="Update mode: merge or replace")
-    parser.add_argument("--output", "-o", default="patch_template.json",
-                       help="Output file for template creation")
-    
+    parser.add_argument(
+        "--mode",
+        "-m",
+        choices=["merge", "replace"],
+        default="merge",
+        help="Update mode: merge or replace",
+    )
+    parser.add_argument(
+        "--output",
+        "-o",
+        default="patch_template.json",
+        help="Output file for template creation",
+    )
+
     args = parser.parse_args()
-    
+
     updater = PatchUpdater()
-    
+
     if args.action == "load-sample":
         result = updater.load_sample_data()
         print(f"Sample data loading result: {result}")
-    
+
     elif args.action == "update-from-file":
         if not args.file:
             print("Error: --file argument required for update-from-file action")
             return
         result = updater.update_heroes_from_file(args.file, args.mode)
         print(f"File update result: {result}")
-    
+
     elif args.action == "create-template":
         result = updater.create_patch_template(args.output)
         print(f"Template creation result: {result}")

@@ -1,5 +1,6 @@
 """
 Draft Configuration - Centralized configuration for all draft-related constants
+Weights based on MLBB game knowledge and role responsibilities
 """
 
 from typing import Dict, List
@@ -22,92 +23,108 @@ class DraftConfig:
     ALL_LANES: List[str] = ["exp", "jungle", "mid", "gold", "roam"]
 
     # ===== LANE PRIORITY & IMPORTANCE =====
-    # How important each lane is (higher = more impactful)
-    # This determines priority when multiple lanes are missing
+    # Determines which empty lane to fill first
     LANE_IMPORTANCE: Dict[str, int] = {
-        "jungle": 100,  # Highest impact - pick first
-        "mid": 90,  # Second highest
-        "exp": 80,  # Third
-        "gold": 75,  # Fourth
-        "roam": 70,  # Lowest impact
+        "jungle": 100,  # Highest impact - controls map tempo
+        "mid": 90,  # Second - provides magic damage and roaming
+        "exp": 80,  # Third - provides frontline and engage
+        "gold": 75,  # Fourth - scaling carry damage
+        "roam": 70,  # Last - support/enabler role
     }
 
     # ===== LANE-SPECIFIC WEIGHT CONFIGURATIONS =====
-    # Different lanes need different scoring emphasis
-
+    # Based on MLBB game knowledge of each role's responsibilities
     LANE_WEIGHTS: Dict[str, Dict[str, float]] = {
-        # Jungle: High impact, needs team synergy and composition balance
+        # ── JUNGLE ──────────────────────────────────────────────────────────
+        # Jungler contests enemy jungler directly → counter is important
+        # Rotates to all lanes → synergy with whole team matters
+        # Usually provides burst/assassin role → composition matters
+        # Non-jungler in jungle = disaster → role_fit raised
         "jungle": {
-            "counter": 0.15,  # Lower - jungle pick isn't about countering specific lane
-            "synergy": 0.30,  # Medium - synergy with team matters
-            "team_composition": 0.35,  # HIGH - filling gaps is critical
-            "pick_priority": 0.15,  # Medium - meta strength
-            "role_fit": 0.05,  # Very low (must play jungle)
+            "counter": 0.30,  # Counter enemy jungler directly
+            "synergy": 0.25,  # Rotates to all lanes - synergy matters
+            "team_composition": 0.20,  # Fill burst/assassin gap
+            "pick_priority": 0.15,  # Meta junglers matter (Fanny, Lancelot)
+            "role_fit": 0.10,  # Must actually be a jungler
         },
-        # Mid Lane: Medium impact, needs counter play + team fit
+        # ── MID LANE ────────────────────────────────────────────────────────
+        # Counters enemy mid (Kagura, Harith, Valentina mirror etc)
+        # Mage needs team setup to land spells → synergy matters
+        # Usually fills magic damage gap → composition matters
+        # Must be able to play mid efficiently
         "mid": {
-            "counter": 0.30,  # Medium - countering mid enemy matters
-            "synergy": 0.25,  # Medium
-            "team_composition": 0.25,  # Medium - balance team
-            "pick_priority": 0.15,  # Medium
-            "role_fit": 0.05,
+            "counter": 0.25,  # Counter enemy mid laner
+            "synergy": 0.25,  # Needs team setup for spells
+            "team_composition": 0.25,  # Fills magic damage gap
+            "pick_priority": 0.15,  # Meta mid laners matter
+            "role_fit": 0.10,  # Must be a mid hero
         },
-        # EXP Lane: Fighter/Tank heavy, needs tankiness and team coordination
+        # ── EXP LANE ────────────────────────────────────────────────────────
+        # Provides team's FRONTLINE → composition is most critical
+        # 1v1 duels happen → counter matters somewhat
+        # EXP lane is isolated early → synergy less critical
+        # Without frontline: team has no engage/peel → composition #1
         "exp": {
-            "counter": 0.20,  # Low
-            "synergy": 0.30,  # Medium
-            "team_composition": 0.35,  # HIGH - need tankiness/durability
-            "pick_priority": 0.10,  # Low
-            "role_fit": 0.05,
+            "counter": 0.20,  # 1v1 duels matter in EXP lane
+            "synergy": 0.20,  # Isolated early - synergy less critical
+            "team_composition": 0.35,  # CRITICAL: must provide tankiness/engage
+            "pick_priority": 0.15,  # Meta exp laners matter
+            "role_fit": 0.10,  # Must survive lane phase
         },
-        # Gold Lane: Carry lane, needs late game power and farm potential
+        # ── GOLD LANE ───────────────────────────────────────────────────────
+        # Protected by roamer → direct counters less important
+        # Pick strong meta marksman → pick_priority is HIGHEST here
+        # Provides scaling damage → composition matters
+        # Strong gold laners (Beatrix, Melissa, Brody) outperform situational picks
         "gold": {
-            "counter": 0.15,  # Low
-            "synergy": 0.25,  # Medium
-            "team_composition": 0.30,  # Medium - need DPS
-            "pick_priority": 0.25,  # Higher - meta marksmen/fighters
-            "role_fit": 0.05,
+            "counter": 0.15,  # Protected - counters less impactful
+            "synergy": 0.20,  # Needs roamer peel/support
+            "team_composition": 0.25,  # Provides physical/late game damage
+            "pick_priority": 0.30,  # META MATTERS MOST: pick strong gold laner
+            "role_fit": 0.10,  # Must scale well in gold lane
         },
-        # Roam: Support role, needs to cover team weaknesses
+        # ── ROAM ────────────────────────────────────────────────────────────
+        # Exists purely to ENABLE team → synergy is everything
+        # Fills engage/peel/heal gap → composition is second
+        # Does not counter enemy directly → counter is lowest
+        # Meta matters less than team fit
+        # e.g. Team has Franco (engage) → pick Angela (peel/heal)
+        #      Team has no engage → pick Khufra/Tigreal
         "roam": {
-            "counter": 0.10,  # Very low
-            "synergy": 0.35,  # HIGH - must support team
-            "team_composition": 0.30,  # High - fill gaps (heal, peel, engage)
-            "pick_priority": 0.15,  # Low
-            "role_fit": 0.10,
+            "counter": 0.10,  # Roamer doesn't counter directly
+            "synergy": 0.40,  # SYNERGY IS EVERYTHING for roamer
+            "team_composition": 0.30,  # Fill engage/peel/heal gap
+            "pick_priority": 0.10,  # Meta matters less for roam
+            "role_fit": 0.10,  # Must be able to roam
         },
     }
 
-    # ===== BASE WEIGHTS (used if lane-specific not applicable) =====
+    # ===== BASE WEIGHTS (fallback if lane not found) =====
     BASE_WEIGHTS: Dict[str, float] = {
-        "counter": 0.35,
+        "counter": 0.25,
         "synergy": 0.25,
-        "team_composition": 0.20,
+        "team_composition": 0.25,
         "pick_priority": 0.15,
-        "role_fit": 0.05,
+        "role_fit": 0.10,
     }
 
     # ===== DRAFT PHASE DEFINITIONS =====
-    EARLY_DRAFT_THRESHOLD = 4
+    EARLY_DRAFT_THRESHOLD = 4  # Total picks <= 4 = early draft
     MID_DRAFT_THRESHOLD = 6
     LATE_DRAFT_THRESHOLD = 10
 
-    # ===== THRESHOLD SCORES =====
-    COUNTER_THRESHOLD = 70
-    SYNERGY_THRESHOLD = 70
-    COMP_THRESHOLD = 70
-    PRIORITY_THRESHOLD = 75
+    # ===== SCORE THRESHOLDS (when to add a reason) =====
+    COUNTER_THRESHOLD = 65
+    SYNERGY_THRESHOLD = 65
+    COMP_THRESHOLD = 60
+    PRIORITY_THRESHOLD = 70
 
     # ===== LANE FIT SCORES =====
-    LANE_FIT_PRIMARY = 100
-    LANE_FIT_SECONDARY = 75
-    LANE_FIT_TERTIARY = 50
-    LANE_FIT_LOWER = 30
-    LANE_FIT_NO_MATCH = 5
-
-    # ===== STAT THRESHOLDS =====
-    HIGH_STAT_THRESHOLD = 4
-    VERY_HIGH_STAT_THRESHOLD = 5
+    LANE_FIT_PRIMARY = 100  # Hero's primary lane
+    LANE_FIT_SECONDARY = 75  # Hero's secondary lane
+    LANE_FIT_TERTIARY = 50  # Hero's tertiary lane
+    LANE_FIT_LOWER = 25  # Lower priority lanes
+    LANE_FIT_NO_MATCH = 0  # Hero cannot play this lane - DISQUALIFIED
 
     # ===== TEAM COMPOSITION TARGETS =====
     TARGET_TANKINESS = 8
@@ -117,88 +134,66 @@ class DraftConfig:
     TARGET_ENGAGE = 8
     TARGET_WAVECLEAR = 8
 
-    # ===== PENALTY FACTORS =====
-    ROLE_REDUNDANCY_PENALTY = 15
-    PERFECT_STAT_PENALTY_2 = 0.90
-    PERFECT_STAT_PENALTY_3 = 0.95
-    PERFECT_STAT_PENALTY_5 = 0.85
+    # ===== ROLE REDUNDANCY PENALTY =====
+    # Picking the same primary role twice (e.g., two Roamers)
+    ROLE_REDUNDANCY_PENALTY = 20
+
+    # ===== PERFECT STAT PENALTIES =====
+    # Heroes with suspiciously perfect stats get penalized
+    PERFECT_STAT_PENALTY_3 = 0.95  # 5% penalty for 3 perfect stats
+    PERFECT_STAT_PENALTY_4 = 0.90  # 10% penalty for 4 perfect stats
+    PERFECT_STAT_PENALTY_5 = 0.85  # 15% penalty for 5+ perfect stats
 
     # ===== DIVERSITY TRACKING =====
-    DIVERSITY_PENALTY_THRESHOLDS = {0: 0.00, 2: 0.05, 4: 0.10, float("inf"): 0.15}
+    # Prevent same hero being suggested repeatedly
+    DIVERSITY_PENALTY_LOW = 0.05  # 1-2 suggestions: 5% penalty
+    DIVERSITY_PENALTY_MID = 0.10  # 3-4 suggestions: 10% penalty
+    DIVERSITY_PENALTY_HIGH = 0.15  # 5+ suggestions: 15% penalty
 
     # ===== DYNAMIC WEIGHT ADJUSTMENTS =====
+    # Applied ON TOP of lane-specific weights based on draft state
     WEIGHT_ADJUSTMENTS = {
+        # Late draft: team composition becomes more urgent
         "late_draft": {
-            "team_composition": +0.10,
-            "synergy": +0.10,
-            "pick_priority": -0.10,
-        },
-        "enemy_pattern_clear": {
-            "counter": +0.15,
-            "synergy": -0.10,
-        },
-        "missing_critical_role": {
-            "role_fit": +0.15,
+            "team_composition": +0.05,
             "pick_priority": -0.05,
         },
+        # Enemy pattern clear (3+ picks): boost counter for jungle/mid
+        "enemy_pattern_clear": {
+            "counter": +0.10,
+            "synergy": -0.05,
+            "pick_priority": -0.05,
+        },
+        # Many bans (6+): avoid niche picks
         "many_bans": {
             "pick_priority": +0.05,
+            "team_composition": -0.05,
         },
+        # Win condition secured (strong carry already picked)
         "win_condition_secured": {
             "synergy": +0.10,
             "counter": -0.05,
+            "pick_priority": -0.05,
         },
     }
 
-    # ===== COUNTER SCORING MECHANICS =====
-    COUNTER_SCORING = {
-        "anti_squishy": {
-            "threshold": 4,
-            "vs_tankiness": {"threshold": 2, "bonus": 25},
-            "vs_tankiness_mod": {"threshold": 3, "bonus": 15},
-        },
-        "anti_tank": {
-            "threshold": 4,
-            "vs_tankiness": {"threshold": 4, "bonus": 25},
-            "vs_tankiness_mod": {"threshold": 5, "bonus": 15},
-        },
-        "mobility": {
-            "bonus_escape": 20,
-            "bonus_mobility": 20,
-        },
-        "poke": {
-            "threshold": 4,
-            "vs_range": {"threshold": 2, "bonus": 20},
-            "vs_range_mod": {"threshold": 3, "bonus": 10},
-        },
-        "engage": {
-            "threshold": 4,
-            "vs_mobility": {"threshold": 2, "bonus": 20},
-        },
-        "burst": {
-            "threshold": 4,
-            "vs_defense": {"threshold": 3, "bonus": 20},
-            "vs_defense_mod": {"threshold": 4, "bonus": 10},
-        },
-    }
-
-    # ===== SYNERGY SCORING MECHANICS =====
+    # ===== SYNERGY SCORING BONUSES =====
     SYNERGY_SCORING = {
-        "tank_dps": 20,
-        "engage_aoe": 25,
-        "cc_burst": 20,
-        "peel_squishy": 18,
-        "sustain_fighter": 22,
-        "double_engage": 15,
-        "dive_comp": 12,
+        "tank_dps": 20,  # Tank + DPS dealer
+        "engage_aoe": 25,  # Engage + AoE damage (e.g., Tigreal + Odette)
+        "cc_burst": 20,  # CC + burst assassin (e.g., Franco + Gusion)
+        "peel_squishy": 18,  # Peel support + squishy carry (e.g., Angela + Layla)
+        "sustain_fighter": 22,  # Sustain support + fighter
+        "double_engage": 15,  # Two engage heroes (dive comp)
+        "dive_comp": 12,  # Multiple mobile heroes
     }
 
-    # ===== PRIORITY MULTIPLIER =====
-    PRIORITY_SCALE = 20
+    # ===== PRIORITY SCALE =====
+    PRIORITY_SCALE = 20  # Multiplier to bring score to 0-100
 
-    # ===== MAX SUGGESTIONS =====
-    TOP_SUGGESTIONS_COUNT = 5
-    REASONS_PER_HERO = 5
+    # ===== SUGGESTIONS CONFIG =====
+    TOP_SUGGESTIONS_COUNT = 5  # Return top 5 heroes
+    REASONS_PER_HERO = 5  # Max reasons shown per hero
 
     # ===== LOGGING =====
     LOG_SCORING_DETAILS = False
