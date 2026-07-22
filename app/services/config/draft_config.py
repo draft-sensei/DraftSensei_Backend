@@ -108,6 +108,8 @@ class DraftConfig:
         "role_fit": 0.10,
     }
 
+    HIGH_STAT_THRESHOLD = 4
+
     # ===== DRAFT PHASE DEFINITIONS =====
     EARLY_DRAFT_THRESHOLD = 4  # Total picks <= 4 = early draft
     MID_DRAFT_THRESHOLD = 6
