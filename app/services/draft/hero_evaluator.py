@@ -1,7 +1,7 @@
 """
 Hero Evaluator
-Scores individual heroes based on counter, synergy, composition, priority, and lane fit
-Uses lane-specific weights for more accurate recommendations
+Scores individual heroes using lane-specific weights.
+Heroes that cannot play the target lane are filtered out entirely.
 """
 
 from typing import Dict, Any, List, Tuple
@@ -12,7 +12,6 @@ from app.services.scoring.counter_scorer import CounterScorer
 from app.services.scoring.synergy_scorer import SynergyScorer
 from app.services.scoring.priority_scorer import PriorityScorer
 from .team_analyzer import TeamAnalyzer
-from app.services.scoring.weights import WeightCalculator
 
 logger = logging.getLogger(__name__)
 
@@ -26,7 +25,6 @@ class HeroEvaluator:
         self.synergy_scorer = SynergyScorer()
         self.priority_scorer = PriorityScorer()
         self.team_analyzer = TeamAnalyzer()
-        self.weight_calculator = WeightCalculator()
 
     def evaluate_hero(
         self,
@@ -39,33 +37,38 @@ class HeroEvaluator:
         heroes_data: Dict[str, Dict[str, Any]],
     ) -> Tuple[float, List[str]]:
         """
-        Calculate final score for a hero with lane-specific weights.
+        Score a hero for a specific lane.
+
+        HARD FILTER: Heroes who cannot play the target lane return score 0.
+        This prevents suggesting Mid mages when Jungle is needed.
 
         Args:
-            hero_name: Name of hero
-            hero: Hero data dictionary
+            hero_name: Hero name
+            hero: Hero data dict
             banned_heroes: Banned heroes
-            enemy_picks: Enemy team picks
-            ally_picks: Ally team picks
-            current_role: Lane code being filled (exp, jungle, mid, gold, roam)
-            heroes_data: Dictionary of all heroes' data
+            enemy_picks: Enemy picks
+            ally_picks: Ally picks
+            current_role: Lane code (exp, jungle, mid, gold, roam)
+            heroes_data: All heroes data
 
         Returns:
-            Tuple of (final_score, reasons_list)
+            Tuple of (score 0-100, list of reasons)
         """
-        reasons = []
+        lane_name = self.config.ROLE_MAP.get(current_role, current_role)
 
-        # Get missing roles for weight calculation
-        missing_roles = self.team_analyzer.identify_missing_roles(
-            ally_picks, heroes_data
+        # ── STEP 1: Hard lane filter ─────────────────────────────────────────
+        lane_score = self._calculate_lane_fit_score(hero, current_role)
+
+        if lane_score == self.config.LANE_FIT_NO_MATCH:
+            # Hero cannot play this lane - completely disqualify
+            return 0.0, [f"Cannot play {lane_name}"]
+
+        # ── STEP 2: Get lane-specific weights with dynamic adjustments ────────
+        weights = self._get_weights(
+            current_role, banned_heroes, enemy_picks, ally_picks
         )
 
-        # Get lane-specific weights (not just base weights)
-        weights = self._get_lane_specific_weights(
-            current_role, banned_heroes, enemy_picks, ally_picks, missing_roles
-        )
-
-        # Calculate individual scores
+        # ── STEP 3: Calculate individual component scores ─────────────────────
         counter_score = self.counter_scorer.calculate_counter_score(
             hero, enemy_picks, heroes_data
         )
@@ -76,35 +79,8 @@ class HeroEvaluator:
             hero, ally_picks, heroes_data
         )
         priority_score = self.priority_scorer.calculate_pick_priority_score(hero)
-        lane_score = self._calculate_role_fit_score(hero, current_role)
 
-        # Add reasons based on scores and lane
-        lane_name = self.config.ROLE_MAP.get(current_role, current_role)
-
-        # Always add lane fit reason
-        if lane_score >= 100:
-            reasons.append(f"Primary {lane_name} hero")
-        elif lane_score >= 75:
-            reasons.append(f"Good fit for {lane_name}")
-        elif lane_score < 30:
-            reasons.append(f"❌ Not suited for {lane_name}")
-            # Don't suggest heroes who can't play the lane
-            return 0, [f"Cannot play {lane_name}"]
-
-        # Add other reasons based on lane context
-        if counter_score > self.config.COUNTER_THRESHOLD:
-            reasons.append(f"Counters enemies ({counter_score:.0f}/100)")
-
-        if synergy_score > self.config.SYNERGY_THRESHOLD:
-            reasons.append(f"Great team synergy ({synergy_score:.0f}/100)")
-
-        if comp_score > self.config.COMP_THRESHOLD:
-            reasons.append(f"Fills team gaps ({comp_score:.0f}/100)")
-
-        if priority_score > self.config.PRIORITY_THRESHOLD:
-            reasons.append(f"Strong meta pick")
-
-        # Calculate weighted final score using LANE-SPECIFIC weights
+        # ── STEP 4: Build weighted final score ────────────────────────────────
         final_score = (
             counter_score * weights["counter"]
             + synergy_score * weights["synergy"]
@@ -113,89 +89,127 @@ class HeroEvaluator:
             + lane_score * weights["role_fit"]
         )
 
-        # Boost score if hero fills critical team gap for this lane
+        # ── STEP 5: Critical gap boost ────────────────────────────────────────
         team_stats = self.team_analyzer._analyze_team_stats(ally_picks, heroes_data)
-        if self._hero_covers_critical_gap(hero, team_stats, current_role):
-            final_score *= 1.15  # 15% boost for filling critical gap
-            if not reasons[0].startswith("Top tier"):
-                reasons.insert(0, "✓ Covers critical team gap")
+        if self._covers_critical_gap(hero, team_stats, current_role):
+            final_score *= 1.15
+            gap_reason = self._describe_gap_covered(hero, team_stats, current_role)
+        else:
+            gap_reason = None
 
-        # Add top tier indicator
-        if final_score > 80:
-            reasons.insert(0, f"Top tier pick for {lane_name}")
+        # ── STEP 6: Build reason list ─────────────────────────────────────────
+        reasons = self._build_reasons(
+            hero_name,
+            hero,
+            current_role,
+            lane_name,
+            lane_score,
+            counter_score,
+            synergy_score,
+            comp_score,
+            priority_score,
+            final_score,
+            gap_reason,
+        )
 
-        return final_score, reasons[: self.config.REASONS_PER_HERO]
+        return final_score, reasons
 
-    def _get_lane_specific_weights(
+    # ─────────────────────────────────────────────────────────────────────────
+    # WEIGHTS
+    # ─────────────────────────────────────────────────────────────────────────
+
+    def _get_weights(
         self,
         lane: str,
         banned_heroes: List[str],
         enemy_picks: List[str],
         ally_picks: List[str],
-        missing_roles: List[str],
     ) -> Dict[str, float]:
         """
-        Get weights specific to the lane being filled.
+        Get weights for this lane and adjust for draft state.
 
-        Different lanes have different priorities:
-        - Jungle: Team composition > Synergy > Priority > Counter
-        - Mid: Counter > Synergy > Composition > Priority
-        - EXP: Composition > Synergy > Counter > Priority
-        - Gold: Composition > Counter > Synergy > Priority
-        - Roam: Synergy > Composition > Priority > Counter
-
-        Args:
-            lane: Lane code
-            banned_heroes: Banned heroes
-            enemy_picks: Enemy team picks
-            ally_picks: Ally team picks
-            missing_roles: Missing roles in team
-
-        Returns:
-            Dictionary of adjusted weights summing to 1.0
+        Starts from lane-specific base weights from config,
+        then applies dynamic adjustments on top.
         """
-        # Get base lane-specific weights
-        if lane in self.config.LANE_WEIGHTS:
-            weights = self.config.LANE_WEIGHTS[lane].copy()
-        else:
-            weights = self.config.BASE_WEIGHTS.copy()
-
-        logger.debug(f"Base weights for {lane}: {weights}")
-
-        # Apply dynamic adjustments (late game, enemy pattern, etc)
+        weights = self.config.LANE_WEIGHTS.get(lane, self.config.BASE_WEIGHTS).copy()
         total_picks = len(enemy_picks) + len(ally_picks)
 
-        # Late draft: increase team composition weight
+        # Late draft: team composition becomes more urgent
         if total_picks >= self.config.EARLY_DRAFT_THRESHOLD:
-            weights["team_composition"] += 0.05
-            weights["pick_priority"] -= 0.05
+            adj = self.config.WEIGHT_ADJUSTMENTS["late_draft"]
+            for key, delta in adj.items():
+                weights[key] = weights.get(key, 0) + delta
 
-        # Enemy pattern clear: boost counter for mid/gold lanes
-        if len(enemy_picks) >= 3 and lane in ["mid", "gold"]:
-            weights["counter"] += 0.10
-            weights["synergy"] -= 0.05
+        # Enemy pattern clear: boost counter for jungle/mid
+        if len(enemy_picks) >= 3 and lane in ["jungle", "mid"]:
+            adj = self.config.WEIGHT_ADJUSTMENTS["enemy_pattern_clear"]
+            for key, delta in adj.items():
+                weights[key] = weights.get(key, 0) + delta
 
-        # Normalize weights to sum to 1.0
-        total_weight = sum(weights.values())
-        if total_weight > 0:
-            weights = {k: v / total_weight for k, v in weights.items()}
+        # Many bans: avoid niche picks
+        if len(banned_heroes) >= 6:
+            adj = self.config.WEIGHT_ADJUSTMENTS["many_bans"]
+            for key, delta in adj.items():
+                weights[key] = weights.get(key, 0) + delta
 
-        logger.debug(f"Final weights for {lane}: {weights}")
+        # Normalize to sum to 1.0
+        total = sum(weights.values())
+        if total > 0:
+            weights = {k: max(v, 0) / total for k, v in weights.items()}
+
+        if self.config.LOG_WEIGHT_CALCULATIONS:
+            logger.info(f"[{lane}] Final weights: {weights}")
+
         return weights
 
-    def _hero_covers_critical_gap(
+    # ─────────────────────────────────────────────────────────────────────────
+    # LANE FIT
+    # ─────────────────────────────────────────────────────────────────────────
+
+    def _calculate_lane_fit_score(
+        self, hero: Dict[str, Any], current_role: str
+    ) -> float:
+        """
+        Score how well this hero fits the target lane.
+
+        Returns LANE_FIT_NO_MATCH (0) if hero cannot play the lane at all.
+        This is a hard disqualifier.
+        """
+        hero_meta = hero.get("meta", {})
+        roles = hero_meta.get("attributes", {}).get("roles", {})
+        lane_priorities = roles.get("lane_priority", [])
+        target_lane = self.config.ROLE_MAP.get(current_role, current_role)
+
+        if target_lane in lane_priorities:
+            idx = lane_priorities.index(target_lane)
+            if idx == 0:
+                return self.config.LANE_FIT_PRIMARY  # 100
+            elif idx == 1:
+                return self.config.LANE_FIT_SECONDARY  # 75
+            elif idx == 2:
+                return self.config.LANE_FIT_TERTIARY  # 50
+            else:
+                return self.config.LANE_FIT_LOWER  # 25
+
+        return self.config.LANE_FIT_NO_MATCH  # 0 - DISQUALIFIED
+
+    # ─────────────────────────────────────────────────────────────────────────
+    # CRITICAL GAP BOOST
+    # ─────────────────────────────────────────────────────────────────────────
+
+    def _covers_critical_gap(
         self,
         hero: Dict[str, Any],
         team_stats: Dict[str, float],
         lane: str,
     ) -> bool:
         """
-        Check if this hero covers a critical gap for the lane being filled.
+        Check if this hero covers a gap the team critically needs.
 
         Examples:
-        - Jungle: Team needs mobility? Check hero has high mobility
-        - EXP: Team needs tankiness? Check hero has high tankiness
-        - Roam: Team needs CC? Check hero has CC
+        - Jungle: Team has no mobility → hero has high mobility → boost
+        - EXP: Team has no tankiness → hero is tanky → boost
+        - Roam: Team has no CC → hero has CC → boost
         """
         hero_meta = hero.get("meta", {})
         attrs = hero_meta.get("attributes", {})
@@ -204,81 +218,110 @@ class HeroEvaluator:
         surv = attrs.get("survivability", {})
         util = attrs.get("utility", {})
         range_style = attrs.get("range_playstyle", {})
+        power = attrs.get("power_curve", {})
 
-        # Define what each lane "solves"
-        lane_solutions = {
-            "jungle": {"mobility": 4, "damage": 4},  # Need mobile, high damage
-            "mid": {"damage": 4, "cc": 3},  # Need damage and CC
-            "exp": {"tankiness": 4, "engage": 3},  # Need tank and engage
-            "gold": {"damage": 4, "late_game": 4},  # Need DPS and scaling
-            "roam": {"cc": 3, "support": 3},  # Need CC and support
-        }
+        HIGH = self.config.HIGH_STAT_THRESHOLD  # 4
 
-        solutions = lane_solutions.get(lane, {})
+        if lane == "jungle":
+            # Jungle needs mobility and burst
+            return (
+                surv.get("mobility", 0) >= HIGH or combat.get("burst_damage", 0) >= HIGH
+            )
 
-        # Check if hero provides needed attributes
-        for attr, threshold in solutions.items():
-            if attr == "mobility":
-                if surv.get("mobility", 0) >= threshold:
-                    return True
-            elif attr == "damage":
-                dps = combat.get("dps", 0)
-                if dps >= threshold:
-                    return True
-            elif attr == "cc":
-                if util.get("crowd_control", 0) >= threshold:
-                    return True
-            elif attr == "tankiness":
-                if surv.get("tankiness", 0) >= threshold:
-                    return True
-            elif attr == "engage":
-                if range_style.get("engage", 0) >= threshold:
-                    return True
-            elif attr == "support":
-                heal = util.get("team_heal", 0)
-                buff = util.get("team_buff", 0)
-                if heal >= 3 or buff >= 3:
-                    return True
-            elif attr == "late_game":
-                power = attrs.get("power_curve", {})
-                if power.get("late_game", 0) >= threshold:
-                    return True
+        elif lane == "mid":
+            # Mid needs magic damage and CC
+            role = attrs.get("roles", {}).get("primary_role", "")
+            return role == "Mage" and (
+                combat.get("dps", 0) >= HIGH or util.get("crowd_control", 0) >= HIGH
+            )
+
+        elif lane == "exp":
+            # EXP needs tankiness and engage
+            return (
+                surv.get("tankiness", 0) >= HIGH or range_style.get("engage", 0) >= HIGH
+            )
+
+        elif lane == "gold":
+            # Gold needs late game scaling and DPS
+            return power.get("late_game", 0) >= HIGH and combat.get("dps", 0) >= HIGH
+
+        elif lane == "roam":
+            # Roam needs CC or team support
+            return (
+                util.get("crowd_control", 0) >= HIGH
+                or util.get("team_heal", 0) >= 3
+                or util.get("team_buff", 0) >= 3
+            )
 
         return False
 
-    def _calculate_role_fit_score(
-        self, hero: Dict[str, Any], current_role: str
-    ) -> float:
-        """
-        Calculate how well hero fits the requested lane (0-100).
+    def _describe_gap_covered(
+        self,
+        hero: Dict[str, Any],
+        team_stats: Dict[str, float],
+        lane: str,
+    ) -> str:
+        """Return a short description of which gap this hero covers"""
+        gap_descriptions = {
+            "jungle": "Provides burst damage & mobility for jungle",
+            "mid": "Provides magic damage and CC from mid",
+            "exp": "Provides frontline tankiness and engage",
+            "gold": "Strong late-game scaling carry",
+            "roam": "Provides CC and team support from roam",
+        }
+        return gap_descriptions.get(lane, "Fills critical team gap")
 
-        Based on lane_priority from meta data.
-        Only heroes who can actually play the lane should score high.
+    # ─────────────────────────────────────────────────────────────────────────
+    # REASON BUILDING
+    # ─────────────────────────────────────────────────────────────────────────
 
-        Args:
-            hero: Hero data dictionary
-            current_role: Role code (exp, jungle, mid, gold, roam)
+    def _build_reasons(
+        self,
+        hero_name: str,
+        hero: Dict[str, Any],
+        current_role: str,
+        lane_name: str,
+        lane_score: float,
+        counter_score: float,
+        synergy_score: float,
+        comp_score: float,
+        priority_score: float,
+        final_score: float,
+        gap_reason: str,
+    ) -> List[str]:
+        """Build a clean, informative list of reasons for this suggestion"""
+        reasons = []
 
-        Returns:
-            Role fit score 0-100
-        """
-        hero_meta = hero.get("meta", {})
-        roles = hero_meta.get("attributes", {}).get("roles", {})
+        # Lane fit reason (always first)
+        if lane_score >= self.config.LANE_FIT_PRIMARY:
+            reasons.append(f"Primary {lane_name} hero")
+        elif lane_score >= self.config.LANE_FIT_SECONDARY:
+            reasons.append(f"Strong {lane_name} flex pick")
+        elif lane_score >= self.config.LANE_FIT_TERTIARY:
+            reasons.append(f"Situational {lane_name} pick")
 
-        lane_priorities = roles.get("lane_priority", [])
-        target_lane = self.config.ROLE_MAP.get(current_role, current_role)
+        # Gap coverage reason
+        if gap_reason:
+            reasons.append(gap_reason)
 
-        # Check if hero can actually play this lane
-        if target_lane in lane_priorities:
-            lane_index = lane_priorities.index(target_lane)
-            if lane_index == 0:
-                return self.config.LANE_FIT_PRIMARY
-            elif lane_index == 1:
-                return self.config.LANE_FIT_SECONDARY
-            elif lane_index == 2:
-                return self.config.LANE_FIT_TERTIARY
-            else:
-                return self.config.LANE_FIT_LOWER
+        # Counter reason
+        if counter_score >= self.config.COUNTER_THRESHOLD:
+            reasons.append(f"Counters enemy team ({counter_score:.0f}/100)")
 
-        # Hero can't play this lane
-        return self.config.LANE_FIT_NO_MATCH
+        # Synergy reason
+        if synergy_score >= self.config.SYNERGY_THRESHOLD:
+            reasons.append(f"Strong team synergy ({synergy_score:.0f}/100)")
+
+        # Composition reason
+        if comp_score >= self.config.COMP_THRESHOLD:
+            reasons.append(f"Fills team composition gap ({comp_score:.0f}/100)")
+
+        # Meta strength reason
+        if priority_score >= self.config.PRIORITY_THRESHOLD:
+            reasons.append("Strong meta pick")
+
+        # Top tier indicator
+        if final_score >= 80:
+            reasons.insert(0, f"Top tier {lane_name} pick")
+
+        return reasons[: self.config.REASONS_PER_HERO]
