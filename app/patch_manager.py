@@ -48,7 +48,7 @@ class PatchManager:
                     "nerfed_heroes": ["Karina"],
                     "revamped_heroes": ["Yin"],
                 },
-                notes_url="https://mobilelegends.fandom.com/wiki/Patch_1.8.32"
+                notes_url="https://mobilelegends.fandom.com/wiki/Patch_2.1.90"
             )
         """
         patch_entry = {
